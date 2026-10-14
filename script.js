@@ -1,6 +1,5 @@
-/* ==== UTIL ==== */
 const $ = (id) => document.getElementById(id);
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;'}[c]));
+const esc = (v) => String(v ?? '').replace(/[&<>\"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\\'':'&#039;'}[c]));
 const SUDAH = 'Sudah diawasi';
 const BELUM = 'Belum diawasi';
 const PAGE = 100;
@@ -38,9 +37,7 @@ function toast(msg, err = false, ms = 3500) {
   if (ms) toastTimer = setTimeout(() => t.className = '', ms);
 }
 
-/* ==== PETA ==== */
 const map = L.map('map', { center: [-2.5, 118], zoom: 5, zoomControl: true, preferCanvas: true });
-
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
   maxZoom: 19
@@ -58,14 +55,12 @@ const baseMaps = {
 };
 
 L.control.layers(baseMaps).addTo(map);
-
 const clusterGroup = L.markerClusterGroup({
   chunkedLoading: true,
   showCoverageOnHover: false,
   maxClusterRadius: 50
 }).addTo(map);
 
-/* ==== DATA ==== */
 const SHEET_ID = '19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k';
 const GID = '0';
 const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
@@ -86,7 +81,7 @@ const firstDefined = (obj, keys) => {
 
 function parseNumberFlexible(raw) {
   if (raw === undefined || raw === null) return NaN;
-  const s = String(raw).trim().replace(/\s+/g, '').replace(/,/g, '.');
+  const s = String(raw).trim().replace(/\\s+/g, '').replace(/,/g, '.');
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
 }
@@ -137,9 +132,9 @@ function makeMarker(d) {
   });
 
   m.bindPopup(`
-    <div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:220px;max-width:320px">
-      <h3 style="font-size:.9rem;margin-bottom:6px;color:#0f172a;border-bottom:2px solid #38bdf8;padding-bottom:4px">${esc(d.name)}</h3>
-      <div style="font-size:.78rem;color:#334155;line-height:1.5">
+    <div style=\"font-family:'Plus Jakarta Sans',sans-serif;min-width:220px;max-width:320px\">
+      <h3 style=\"font-size:.9rem;margin-bottom:6px;color:#0f172a;border-bottom:2px solid #38bdf8;padding-bottom:4px\">${esc(d.name)}</h3>
+      <div style=\"font-size:.78rem;color:#334155;line-height:1.5\">
         ${d.addr ? `<p><strong>Lokasi:</strong> ${esc(d.addr)}</p>` : ''}
         ${d.category ? `<p><strong>UPT PSDKP:</strong> ${esc(d.category)}</p>` : ''}
         ${d.status ? `<p><strong>TL pengawasan:</strong> ${esc(d.status)}</p>` : ''}
@@ -153,7 +148,7 @@ function makeMarker(d) {
 
 function populateCategorySelect() {
   const select = $('f-category');
-  select.innerHTML = '<option value="">Semua kategori</option>';
+  select.innerHTML = '<option value=\"\">Semua kategori</option>';
   const cats = [...new Set(allData.map(d => String(d.category || '').trim()).filter(Boolean))].sort();
   cats.forEach((cat) => {
     const opt = document.createElement('option');
@@ -170,7 +165,7 @@ function renderList(reset) {
   ul.querySelector('.more-li')?.remove();
 
   if (!filtered.length) {
-    ul.innerHTML = '<li class="empty">Tidak ada lokasi yang cocok. Ubah kata kunci atau reset filter.</li>';
+    ul.innerHTML = '<li class=\"empty\">Tidak ada lokasi yang cocok. Ubah kata kunci atau reset filter.</li>';
     return;
   }
 
@@ -181,9 +176,9 @@ function renderList(reset) {
     li.tabIndex = 0;
     li.dataset.id = d._id;
     li.innerHTML = `
-      <h4><span class="dot" style="background:${colorByCategory(d.category || d.name)};border-color:${(d.status && d.status.toLowerCase().includes('sudah')) ? '#34d399' : ((d.status && d.status.toLowerCase().includes('belum')) ? '#f97316' : '#38bdf8')}"></span>${esc(d.name)}</h4>
+      <h4><span class=\"dot\" style=\"background:${colorByCategory(d.category || d.name)};border-color:${(d.status && d.status.toLowerCase().includes('sudah')) ? '#34d399' : ((d.status && d.status.toLowerCase().includes('belum')) ? '#f97316' : '#38bdf8')}\"></span>${esc(d.name)}</h4>
       <p>${esc(d.addr || 'Lokasi tidak tersedia')}</p>
-      <span class="badge ${(d.status && d.status.toLowerCase().includes('sudah')) ? 'b-ok' : ((d.status && d.status.toLowerCase().includes('belum')) ? 'b-no' : 'b-ok')}">${esc(d.status || 'Status tidak ada')}</span>
+      <span class=\"badge ${(d.status && d.status.toLowerCase().includes('sudah')) ? 'b-ok' : ((d.status && d.status.toLowerCase().includes('belum')) ? 'b-no' : 'b-ok')}\">${esc(d.status || 'Status tidak ada')}</span>
     `;
     frag.appendChild(li);
   });
@@ -194,7 +189,7 @@ function renderList(reset) {
   if (shown < filtered.length) {
     const li = document.createElement('li');
     li.className = 'more-li';
-    li.innerHTML = `<button class="more" type="button">Muat lebih banyak (${filtered.length - shown} tersisa)</button>`;
+    li.innerHTML = `<button class=\"more\" type=\"button\">Muat lebih banyak (${filtered.length - shown} tersisa)</button>`;
     ul.appendChild(li);
   }
 }
@@ -321,24 +316,22 @@ function buildLegend() {
     const btn = L.DomUtil.create('button', 'legend-btn', wrap);
     btn.type = 'button';
     btn.setAttribute('aria-label', 'Tampilkan legenda');
-    btn.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+    btn.innerHTML = '<i class=\"fa-solid fa-circle-info\"></i>';
 
     const panel = L.DomUtil.create('div', 'legend-panel', wrap);
     panel.innerHTML = `
-      <div class="legend-sec">
+      <div class=\"legend-sec\">
         <h5>Legenda</h5>
-        <div class="lg"><span class="sw" style="background:#38bdf8;border-color:#38bdf8"></span>Warna marker: kategori</div>
-        <div class="lg"><span class="sw" style="background:#34d399;border-color:#34d399"></span>Sudah diawasi</div>
-        <div class="lg"><span class="sw" style="background:#f97316;border-color:#f97316"></span>Belum diawasi</div>
+        <div class=\"lg\"><span class=\"sw\" style=\"background:#38bdf8;border-color:#38bdf8\"></span>Warna marker: kategori</div>
+        <div class=\"lg\"><span class=\"sw\" style=\"background:#34d399;border-color:#34d399\"></span>Sudah diawasi</div>
+        <div class=\"lg\"><span class=\"sw\" style=\"background:#f97316;border-color:#f97316\"></span>Belum diawasi</div>
       </div>
     `;
-
     btn.addEventListener('click', () => {
       const open = panel.classList.toggle('show');
       btn.setAttribute('aria-label', open ? 'Sembunyikan legenda' : 'Tampilkan legenda');
-      btn.innerHTML = `<i class="fa-solid ${open ? 'fa-xmark' : 'fa-circle-info'}"></i>`;
+      btn.innerHTML = `<i class=\"fa-solid ${open ? 'fa-xmark' : 'fa-circle-info'}\"></i>`;
     });
-
     return wrap;
   };
   legend.addTo(map);
@@ -351,7 +344,6 @@ Papa.parse(sheetUrl, {
   complete: (results) => {
     console.log('CSV fields:', results.meta.fields);
     console.log('First row:', results.data[0]);
-
     parseSheet(results.data || []);
     populateCategorySelect();
     bindEvents();
@@ -369,9 +361,3 @@ Papa.parse(sheetUrl, {
     toast('Gagal memuat data dari Google Sheet. Pastikan sheet sudah di-publish ke web dan CSV bisa diakses.', true, 8000);
   }
 });
-
-if (window.innerWidth <= 768) {
-  $('sidebar').classList.remove('open');
-}
-
-render();
