@@ -36,102 +36,203 @@ function normalizeStatus(value) {
   return s;
 }
 
+/* ==== GEODESIC HELP ==== */
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (v) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function colorForDensity(count, max) {
+  const h = 210;
+  const s = 75;
+  const light = 86;
+  const dark = 24;
+  const ratio = max > 0 ? count / max : 0;
+  const l = Math.round(light - ratio * (light - dark));
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+function radiusForDensity(count, max) {
+  const base = 6;
+  const extra = max > 0 ? Math.round((count / max) * 8) : 0;
+  return base + extra;
+}
+
+/* ==== MAP CONFIG ==== */
 const SHEET_ID = '19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k';
 const GID = '0';
 const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
 
-const map = L.map('map').setView([-6.2, 106.8], 11);
+const map = L.map('map').setView([-2.5, 118], 5);
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors'
-});
+}).addTo(map);
 
 const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: 19,
-  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+  attribution: 'Tiles &copy; Esri'
 });
 
-osm.addTo(map);
+L.control.layers({ 'OpenStreetMap': osm, 'Satelit (Esri)': esriSat }).addTo(map);
 
-const baseMaps = {
-  'OpenStreetMap': osm,
-  'Satelit (Esri)': esriSat
-};
+const markersCluster = L.markerClusterGroup({
+  chunkedLoading: true,
+  maxClusterRadius: 50
+});
 
-L.control.layers(baseMaps).addTo(map);
-
-const markersCluster = L.markerClusterGroup();
 let allData = [];
+let densityRadiusMeters = 5000;
 
 function processRows(rows) {
   allData = [];
 
   rows.forEach((row, idx) => {
-    const latRaw = firstDefined(row, ['LAT', 'Lat', 'lat', 'latitude', 'Latitude']);
-    const lngRaw = firstDefined(row, ['LONG', 'Long', 'long', 'longitude', 'Longitude']);
+    const longRaw = firstDefined(row, ['LONG', 'Long', 'long', 'longitude', 'Longitude', 'LON']);
+    const latRaw = firstDefined(row, ['LAT', 'Lat', 'lat', 'latitude', 'Latitude', 'LATITUDE']);
+
     const name = firstDefined(row, ['PELAKU USAHA', 'PELAKU_USAHA', 'pelaku_usaha', 'NAMA', 'nama', 'name']) || `Lokasi ${idx + 1}`;
-    const addr = firstDefined(row, ['LOKASI', 'lokasi', 'ALAMAT', 'alamat', 'address']) || '';
+    const addr = firstDefined(row, ['LOKASI', 'lokasi', 'ALAMAT', 'alamat', 'address', 'ALAMAT LENGKAP']) || '';
+    const indikasi = firstDefined(row, ['INDIKASI PELANGGARAN', 'INDIKASI', 'indikasi', 'indikasi_pelanggaran']) || '';
     const category = firstDefined(row, ['UPT PSDKP', 'UPT_PSDKP', 'UPT', 'upt']) || '';
     const status = normalizeStatus(firstDefined(row, ['TL PENGAWASAN', 'TL_PENGAWASAN', 'TL pengawasan', 'TL_pengawasan', 'TL']));
 
+    const lng = parseNumberFlexible(longRaw);
     const lat = parseNumberFlexible(latRaw);
-    const lng = parseNumberFlexible(lngRaw);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     allData.push({
+      _id: idx,
       lat,
       lng,
       name,
       addr,
+      indikasi,
       category,
       status,
-      raw: row
+      raw: row,
+      density: 0
     });
   });
+
+  if (allData.length) {
+    const n = allData.length;
+    for (let i = 0; i < n; i++) {
+      let count = 0;
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        const d = distanceMeters(allData[i].lat, allData[i].lng, allData[j].lat, allData[j].lng);
+        if (d <= densityRadiusMeters) count++;
+      }
+      allData[i].density = count;
+    }
+    window._maxDensity = Math.max(...allData.map(d => d.density));
+  }
 }
 
-function renderMarkers(filterText = '', filterCategory = '') {
+function popupFromItem(d) {
+  const rows = [];
+  rows.push(['Pelaku Usaha', d.name]);
+  if (d.addr) rows.push(['Lokasi', d.addr]);
+  if (d.indikasi) rows.push(['Indikasi Pelanggaran', d.indikasi]);
+  if (d.category) rows.push(['UPT PSDKP', d.category]);
+  if (d.status) rows.push(['TL Pengawasan', d.status]);
+  rows.push(['Koordinat', `${d.lat}, ${d.lng}`]);
+
+  const usedKeys = new Set([
+    'PELAKU USAHA', 'PELAKU_USAHA', 'pelaku_usaha', 'NAMA', 'nama', 'name',
+    'LOKASI', 'lokasi', 'ALAMAT', 'alamat', 'address', 'ALAMAT LENGKAP',
+    'INDIKASI PELANGGARAN', 'INDIKASI', 'indikasi', 'indikasi_pelanggaran',
+    'UPT PSDKP', 'UPT_PSDKP', 'UPT', 'upt',
+    'TL PENGAWASAN', 'TL_PENGAWASAN', 'TL pengawasan', 'TL_pengawasan', 'TL',
+    'LONG', 'Long', 'long', 'longitude', 'Longitude', 'LON',
+    'LAT', 'Lat', 'lat', 'latitude', 'Latitude', 'LATITUDE'
+  ]);
+
+  for (const k of Object.keys(d.raw || {})) {
+    if (usedKeys.has(k)) continue;
+    const v = d.raw[k];
+    if (v === undefined || v === null || String(v).trim() === '') continue;
+    rows.push([k, String(v)]);
+  }
+
+  let html = '<table style="border-collapse:collapse; font-size:13px; min-width:220px;">';
+  for (const row of rows) {
+    html += `
+      <tr>
+        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #eee; color:#0f172a; width:44%;">${esc(row[0])}</th>
+        <td style="padding:6px 8px; border-bottom:1px solid #f5f6f8; color:#0f172a;">${esc(row[1])}</td>
+      </tr>
+    `;
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderMarkers(filtered = allData) {
   markersCluster.clearLayers();
 
-  const ft = (filterText || '').toLowerCase().trim();
-  const fc = (filterCategory || '').toLowerCase().trim();
-  const bounds = [];
+  const max = Math.max(...filtered.map(d => d.density), 0);
 
-  allData.forEach((d) => {
-    const matchesText = !ft || (d.name && d.name.toLowerCase().includes(ft)) || (d.addr && d.addr.toLowerCase().includes(ft));
-    const matchesCat = !fc || (d.category && d.category.toLowerCase() === fc);
-
-    if (matchesText && matchesCat) {
-      const popup = `
-        <strong>${escapeHtml(d.name)}</strong><br/>
-        ${escapeHtml(d.addr)}
-        ${d.category ? '<br/><em>' + escapeHtml(d.category) + '</em>' : ''}
-        ${d.status ? '<br/>TL Pengawasan: ' + escapeHtml(d.status) : ''}
-      `;
-
-      const m = L.marker([d.lat, d.lng]);
-      m.bindPopup(popup);
-      markersCluster.addLayer(m);
-      bounds.push([d.lat, d.lng]);
-    }
+  filtered.forEach((d) => {
+    const color = colorForDensity(d.density, max);
+    const rad = radiusForDensity(d.density, max);
+    const m = L.circleMarker([d.lat, d.lng], {
+      radius: rad,
+      fillColor: color,
+      color: '#07203a',
+      weight: 0.8,
+      opacity: 1,
+      fillOpacity: 0.85
+    });
+    m.bindPopup(popupFromItem(d));
+    markersCluster.addLayer(m);
   });
 
   map.addLayer(markersCluster);
+}
 
-  if (bounds.length) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-  }
+function buildLegendControl() {
+  const max = window._maxDensity || 0;
+  const legend = L.control({ position: 'bottomright' });
+
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'density-legend');
+    div.style.background = 'rgba(15,23,42,0.9)';
+    div.style.color = '#fff';
+    div.style.padding = '8px 10px';
+    div.style.borderRadius = '8px';
+    div.style.fontSize = '13px';
+
+    div.innerHTML = `
+      <div style="font-weight:700; margin-bottom:6px;">Intensitas titik</div>
+      <div style="height:10px; border-radius:6px; background:linear-gradient(90deg, hsl(210,75%,86%) 0%, hsl(210,75%,50%) 0%, hsl(210,75%,24%) 100%);"></div>
+      <div style="display:flex; justify-content:space-between; margin-top:6px;">
+        <span>0</span><span>${max}</span>
+      </div>
+    `;
+    return div;
+  };
+
+  legend.addTo(map);
 }
 
 function populateCategorySelect() {
   const sel = $('categorySelect');
-  sel.innerHTML = '<option value="">Semua Kategori</option>';
+  if (!sel) return;
 
-  const cats = Array.from(new Set(
-    allData.map(d => (d.category || '').trim()).filter(Boolean)
-  )).sort();
+  sel.innerHTML = '<option value="">Semua Kategori</option>';
+  const cats = Array.from(new Set(allData.map(d => (d.category || '').trim()).filter(Boolean))).sort();
 
   cats.forEach((c) => {
     const opt = document.createElement('option');
@@ -141,45 +242,9 @@ function populateCategorySelect() {
   });
 }
 
-$('applyBtn').addEventListener('click', () => {
-  const txt = $('searchText').value;
-  const cat = $('categorySelect').value;
-  renderMarkers(txt, cat);
-});
+$('applyBtn')?.addEventListener('click', () => {
+  const searchText = $('searchText').value.trim().toLowerCase();
+  const category = $('categorySelect').value;
 
-$('resetBtn').addEventListener('click', () => {
-  $('searchText').value = '';
-  $('categorySelect').value = '';
-  renderMarkers();
-
-  if (allData.length) {
-    const bounds = allData.map(d => [d.lat, d.lng]);
-    map.fitBounds(bounds, { padding: [30, 30] });
-  }
-});
-
-Papa.parse(sheetUrl, {
-  download: true,
-  header: true,
-  skipEmptyLines: true,
-  complete: function(results) {
-    console.log('CSV fields:', results.meta.fields);
-    console.log('First row:', results.data[0]);
-
-    const rows = results.data || [];
-    processRows(rows);
-    populateCategorySelect();
-    renderMarkers();
-
-    if (allData.length) {
-      const bounds = allData.map(d => [d.lat, d.lng]);
-      map.fitBounds(bounds, { padding: [30, 30] });
-    } else {
-      console.warn('Tidak ada koordinat valid ditemukan. Cek header LONG/LAT serta publish CSV.');
-    }
-  },
-  error: function(err) {
-    console.error('Gagal memuat sheet:', err);
-    alert('Gagal memuat data. Pastikan sheet sudah di-publish (File → Publish to web) dan SHEET_ID/GID benar.');
-  }
-});
+  const filtered =`*
+
