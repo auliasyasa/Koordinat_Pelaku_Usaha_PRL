@@ -12,17 +12,17 @@ function parseSheet(rows) {
   allData = [];
   rows.forEach((row, idx) => {
     // Prioritas nama kolom untuk longitude / latitude
-    const longRaw = firstDefined(row, ['long', 'Long', 'longitude', 'Longitude', 'lon', 'LON', 'x']);
-    const latRaw  = firstDefined(row, ['lat', 'Lat', 'latitude', 'Latitude', 'y']);
+    const longRaw = firstDefined(row, ['LONG']);
+    const latRaw  = firstDefined(row, ['LAT']);
 
     // Kategori dari kolom UPT
-    const categoryRaw = firstDefined(row, ['UPT', 'upt', 'Nama_UPT', 'nama_upt', 'nama upt', 'nama']);
+    const categoryRaw = firstDefined(row, ['UPT PSDKP']);
 
     // Status dari kolom TL pengawasan (beberapa variasi nama umum)
-    const statusRaw = firstDefined(row, ['TL pengawasan', 'TL_pengawasan', 'TL', 'tl pengawasan', 'tl_pengawasan', 'TL_PENGAWASAN', 'TLpengawasan']);
+    const statusRaw = firstDefined(row, ['TL Pengawasan']);
 
-    const name = firstDefined(row, ['name', 'nama', 'Name', 'NAMA', 'pelaku_usaha']) || `Lokasi ${idx + 1}`;
-    const addr = firstDefined(row, ['address', 'alamat', 'Address', 'ALAMAT', 'lokasi']) || '';
+    const name = firstDefined(row, ['name', 'nama', 'Name', 'NAMA', 'PELAKU USAHA']) || `Lokasi ${idx + 1}`;
+    const addr = firstDefined(row, ['LOKASI']) || '';
 
     const lng = parseNumberFlexible(longRaw);
     const lat = parseNumberFlexible(latRaw);
@@ -48,9 +48,9 @@ function parseSheet(rows) {
 
 // makeMarker: tampilkan UPT dan TL pengawasan di popup
 function makeMarker(d) {
-  const ring = (d.status && d.status.toLowerCase().includes('sudah')) ? '#34d399'
-             : (d.status && d.status.toLowerCase().includes('belum')) ? '#f97316'
-             : '#38bdf8';
+  const ring = (d.status && d.status.toLowerCase().includes('Sudah Penetapan Sanksi')) ? '#34d399'
+             : (d.status && d.status.toLowerCase().includes('Masih Proses Pengawasan')) ? '#f97316'
+             : (d.status && d.status.toLowerCase().includes('Belum Diawasi')) ? '#38bdf8';
   const fill = colorByCategory(d.category || d.name);
   const m = L.circleMarker([d.lat, d.lng], {
     radius: 7,
