@@ -91,39 +91,56 @@ const markersCluster = L.markerClusterGroup({
 });
 
 let allData = [];
-let densityRadiusMeters = 5000;
+let densityRadiusMeters = 10000;
 
-function processRows(rows) {
-  allData = [];
+const DENSITY_THEME = 'greenyellowred'; // options: 'bluish' | 'redyellow' | 'greenyellowred'
 
-  rows.forEach((row, idx) => {
-    const longRaw = firstDefined(row, ['LONG', 'Long', 'long', 'longitude', 'Longitude', 'LON']);
-    const latRaw = firstDefined(row, ['LAT', 'Lat', 'lat', 'latitude', 'Latitude', 'LATITUDE']);
+function colorForDensity(count, max, theme = DENSITY_THEME) {
+  const ratio = max > 0 ? count / max : 0;
 
-    const name = firstDefined(row, ['PELAKU USAHA', 'PELAKU_USAHA', 'pelaku_usaha', 'NAMA', 'nama', 'name']) || `Lokasi ${idx + 1}`;
-    const addr = firstDefined(row, ['LOKASI', 'lokasi', 'ALAMAT', 'alamat', 'address', 'ALAMAT LENGKAP']) || '';
-    const indikasi = firstDefined(row, ['INDIKASI PELANGGARAN', 'INDIKASI', 'indikasi', 'indikasi_pelanggaran']) || '';
-    const category = firstDefined(row, ['UPT PSDKP', 'UPT_PSDKP', 'UPT', 'upt']) || '';
-    const status = normalizeStatus(firstDefined(row, ['TL PENGAWASAN', 'TL_PENGAWASAN', 'TL pengawasan', 'TL_pengawasan', 'TL']));
+  switch (theme) {
+    case 'bluish': {
+      const hue = 210;
+      const saturation = 75;
+      const lightness = 86 - ratio * (86 - 24);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
 
-    const lng = parseNumberFlexible(longRaw);
-    const lat = parseNumberFlexible(latRaw);
+    case 'redyellow': {
+      // merah -> kuning
+      const hue = 20 + ratio * 40; // 20 = red, 60 = yellow
+      const saturation = 88;
+      const lightness = 62 - ratio * 18;
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    case 'greenyellowred': {
+      // hijau -> kuning -> merah
+      if (ratio < 0.5) {
+        const t = ratio / 0.5;
+        const hue = 100 - t * 40; // 100 = green, 60 = yellow
+        const saturation = 80;
+        const lightness = 62 - t * 10;
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      }
 
-    allData.push({
-      _id: idx,
-      lat,
-      lng,
-      name,
-      addr,
-      indikasi,
-      category,
-      status,
-      raw: row,
-      density: 0
-    });
-  });
+      const t = (ratio - 0.5) / 0.5;
+      const hue = 60 - t * 40; // 60 = yellow, 20 = red
+      const saturation = 88;
+      const lightness = 58 - t * 18;
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+
+    default:
+      return `hsl(210, 75%, ${86 - ratio * 62}%)`;
+  }
+}
+
+function radiusForDensity(count, max) {
+  const base = 6;
+  const extra = max > 0 ? Math.round((count / max) * 10) : 0;
+  return base + extra;
+}
 
   if (allData.length) {
     const n = allData.length;
