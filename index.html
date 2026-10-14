@@ -1,233 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WebGIS - Pelaku Usaha (Google Sheet)</title>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <!-- MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
-  <style>
-    html,body { height:100%; margin:0; padding:0; font-family: sans-serif; }
-    #map { height:100vh; }
-    .controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: rgba(255,255,255,0.95);
-      padding: 8px;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      min-width: 220px;
-    }
-    .controls input, .controls select, .controls button { width: 100%; margin:4px 0; padding:6px; box-sizing: border-box; }
-    .small { font-size: 0.85rem; color:#444; margin-top:6px; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGIS Koordinat Pelaku Usaha</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="controls" id="controls">
-    <strong>Filter / Pencarian</strong>
-    <input id="searchText" placeholder="Cari nama atau alamat..." />
-    <select id="categorySelect">
-      <option value="">Semua Kategori</option>
-    </select>
-    <button id="applyBtn">Terapkan</button>
-    <button id="resetBtn">Reset & Zoom</button>
-    <div class="small">Pastikan sheet sudah di-publish (File → Publish to web → CSV).</div>
-  </div>
+  <aside id="sidebar" aria-label="Filter dan daftar lokasi">
+    <div class="sb-head">
+      <div>
+        <h1><i class="fa-solid fa-map-location-dot"></i> WebGIS Pelaku Usaha</h1>
+        <p>Visualisasi titik koordinat pelaku usaha</p>
+      </div>
+      <button class="icon-btn" id="sb-close" aria-label="Tutup panel"><i class="fa-solid fa-chevron-left"></i></button>
+    </div>
 
-  <div id="map"></div>
+    <div class="sb-body">
+      <div class="stats" aria-live="polite">
+        <div class="stat"><b id="n-total">0</b><span>Total titik</span></div>
+        <div class="stat"><b id="n-ok" style="color:var(--ok)">0</b><span>Sudah</span></div>
+        <div class="stat"><b id="n-no" style="color:var(--warn)">0</b><span>Belum</span></div>
+      </div>
+      <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      <div class="progress-note" id="bar-note"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <!-- PapaParse for CSV parsing -->
+      <div class="field">
+        <label for="q">Cari nama, alamat, atau kategori</label>
+        <input id="q" class="control" type="search" placeholder="Ketik untuk mencari…" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="f-category">Kategori</label>
+        <select id="f-category" class="control"><option value="">Semua kategori</option></select>
+      </div>
+
+      <div class="field">
+        <label id="lbl-status">Status</label>
+        <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status">
+          <button type="button" data-v="" aria-pressed="true">Semua</button>
+          <button type="button" data-v="Sudah diawasi" aria-pressed="false">Sudah</button>
+          <button type="button" data-v="Belum diawasi" aria-pressed="false">Belum</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="list-head">Daftar lokasi (<span id="n-show">0</span>)</span>
+        <button class="link-btn" id="reset" type="button">Reset filter</button>
+      </div>
+      <ul id="data-list"></ul>
+    </div>
+  </aside>
+
+  <main id="map-wrap">
+    <button class="icon-btn" id="sb-open" type="button"><i class="fa-solid fa-sliders"></i> Filter</button>
+    <div id="map"></div>
+    <div id="toast" role="status"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <!-- MarkerCluster -->
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-  <!-- Optional: Google Mutant plugin (only needed if you use Google Maps JS API for Google Satellite)
-       <script src="https://unpkg.com/leaflet.gridlayer.googlemutant/Leaflet.GoogleMutant.js"></script>
-       To use Google Satellite: also add Google Maps JS API script WITH YOUR API KEY:
-       <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
-  -->
-
-  <script>
-    // ===========================
-    // KONFIGURASI
-    // ===========================
-    const SHEET_ID = "19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k"; // dari link Anda
-    const GID = "0"; // sheet/tab
-    // Pastikan Anda sudah Publish to web → format CSV
-    const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
-
-    // Jika mau pakai Google Satellite melalui Google Maps JS API:
-    // 1) Tambahkan <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script> di atas
-    // 2) Tambahkan plugin google mutant script (uncomment di atas)
-    // 3) Setelah itu set USE_GOOGLE_SATELLITE = true
-    const USE_GOOGLE_SATELLITE = false; // ubah ke true jika Anda sudah menambahkan Google Maps API script & plugin
-
-    // ===========================
-    // Inisialisasi peta dan basemap
-    // ===========================
-    const map = L.map('map').setView([-6.2, 106.8], 11);
-
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    });
-
-    // Alternatif citra satelit (ESRI) — bebas dipakai untuk banyak keperluan
-    const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
-    });
-
-    osm.addTo(map); // default
-
-    // Jika Anda mengaktifkan Google Satellite (memerlukan Maps API + plugin):
-    let googleSatLayer = null;
-    if (USE_GOOGLE_SATELLITE && window.L && window.L.gridLayer && window.L.gridLayer.googleMutant) {
-      try {
-        googleSatLayer = L.gridLayer.googleMutant({ type: 'satellite' });
-      } catch (e) {
-        console.warn('Gagal buat GoogleMutant layer. Pastikan Google Maps JS API & plugin dimuat.', e);
-      }
-    }
-
-    const baseMaps = {
-      "OpenStreetMap": osm,
-      "Satelit (Esri)": esriSat
-    };
-    if (googleSatLayer) baseMaps["Satelit (Google)"] = googleSatLayer;
-
-    L.control.layers(baseMaps).addTo(map);
-
-    // Marker cluster group
-    const markersCluster = L.markerClusterGroup();
-    let allData = []; // array objek {lat,lng,name,addr,phone,category,raw}
-
-    // Ambil CSV dan parse
-    Papa.parse(sheetUrl, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function(results) {
-        const rows = results.data || [];
-        processRows(rows);
-        populateCategorySelect();
-        renderMarkers();
-        if (allData.length) {
-          const bounds = allData.map(d => [d.lat, d.lng]);
-          map.fitBounds(bounds, {padding: [40,40]});
-        } else {
-          console.warn('Tidak ada koordinat valid ditemukan.');
-        }
-      },
-      error: function(err) {
-        console.error('Gagal memuat sheet:', err);
-        alert('Gagal memuat data. Pastikan sheet sudah di-publish (File → Publish to web) dan SHEET_ID/GID benar.');
-      }
-    });
-
-    // Proses baris: deteksi nama kolom lat/lng umum
-    function processRows(rows) {
-      allData = [];
-      rows.forEach((row, idx) => {
-        // Mendeteksi kolom latitude / longitude dengan berbagai nama umum
-        const latRaw = firstDefined(row, ['latitude','lat','Latitude','LAT','Lat']);
-        const lngRaw = firstDefined(row, ['longitude','lon','lng','long','Longitude','LON','LNG','Long']);
-        const name = firstDefined(row, ['name','nama','Name','NAMA']) || ('Lokasi ' + (idx+1));
-        const addr = firstDefined(row, ['address','alamat','Address','ALAMAT']) || '';
-        const phone = firstDefined(row, ['phone','telepon','tel','nohp','PHONE']) || '';
-        const category = firstDefined(row, ['category','kategori','type','tipe']) || '';
-
-        const lat = parseFloat((latRaw || '').toString().trim());
-        const lng = parseFloat((lngRaw || '').toString().trim());
-
-        if (!isNaN(lat) && !isNaN(lng)) {
-          allData.push({ lat, lng, name, addr, phone, category, raw: row });
-        }
-      });
-    }
-
-    function firstDefined(obj, keys) {
-      for (const k of keys) {
-        if (obj.hasOwnProperty(k) && obj[k] !== undefined && obj[k] !== null && obj[k].toString().trim() !== '') {
-          return obj[k];
-        }
-      }
-      return null;
-    }
-
-    // Render markers (dengan filter)
-    function renderMarkers(filterText = '', filterCategory = '') {
-      markersCluster.clearLayers();
-      const ft = (filterText || '').toLowerCase().trim();
-      const fc = (filterCategory || '').toLowerCase().trim();
-      const bounds = [];
-
-      allData.forEach(d => {
-        const matchesText = !ft || (d.name && d.name.toLowerCase().includes(ft)) || (d.addr && d.addr.toLowerCase().includes(ft));
-        const matchesCat = !fc || (d.category && d.category.toLowerCase() === fc);
-        if (matchesText && matchesCat) {
-          const popup = `<strong>${escapeHtml(d.name)}</strong><br/>${escapeHtml(d.addr)}${d.phone ? '<br/>Tel: ' + escapeHtml(d.phone) : ''}${d.category ? '<br/><em>' + escapeHtml(d.category) + '</em>' : ''}`;
-          const m = L.marker([d.lat, d.lng]);
-          m.bindPopup(popup);
-          markersCluster.addLayer(m);
-          bounds.push([d.lat, d.lng]);
-        }
-      });
-
-      map.addLayer(markersCluster);
-      if (bounds.length) {
-        map.fitBounds(bounds, {padding: [40,40]});
-      }
-    }
-
-    // Isi pilihan kategori unik
-    function populateCategorySelect() {
-      const sel = document.getElementById('categorySelect');
-      // hapus opsi selain default
-      sel.innerHTML = '<option value="">Semua Kategori</option>';
-      const cats = Array.from(new Set(allData.map(d => (d.category || '').trim()).filter(Boolean))).sort();
-      cats.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        sel.appendChild(opt);
-      });
-    }
-
-    // UI buttons
-    document.getElementById('applyBtn').addEventListener('click', () => {
-      const txt = document.getElementById('searchText').value;
-      const cat = document.getElementById('categorySelect').value;
-      renderMarkers(txt, cat);
-    });
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      document.getElementById('searchText').value = '';
-      document.getElementById('categorySelect').value = '';
-      renderMarkers();
-      if (allData.length) {
-        const bounds = allData.map(d => [d.lat, d.lng]);
-        map.fitBounds(bounds, {padding: [40,40]});
-      }
-    });
-
-    // Escape untuk popup
-    function escapeHtml(text) {
-      if (!text) return '';
-      return text.toString()
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
