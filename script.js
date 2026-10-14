@@ -1,36 +1,37 @@
-// helper: terima format desimal dengan titik atau koma
+const normalizeStatusExtended = (v) => {
+  const s = String(v || '').trim();
+  const low = s.toLowerCase();
+  if (!s) return '';
+  if (low.includes('sudah')) return 'Sudah diawasi';
+  if (low.includes('belum')) return 'Belum diawasi';
+  return s;
+};
+
 function parseNumberFlexible(raw) {
   if (raw === undefined || raw === null) return NaN;
-  // hilangkan spasi, ganti koma dengan titik
-  const s = String(raw).trim().replace(/\s+/g, '').replace(',', '.');
+  const s = String(raw).trim().replace(/\s+/g, '').replace(/,/g, '.');
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
 }
 
-// baca sheet dan buat allData
 function parseSheet(rows) {
   allData = [];
   rows.forEach((row, idx) => {
-    // Prioritas nama kolom untuk longitude / latitude
-    const longRaw = firstDefined(row, ['LONG']);
-    const latRaw  = firstDefined(row, ['LAT']);
+    const longRaw = firstDefined(row, ['LONG','Long','long','longitude','Longitude','lon','LON']);
+    const latRaw  = firstDefined(row, ['LAT','Lat','lat','latitude','Latitude']);
 
-    // Kategori dari kolom UPT
-    const categoryRaw = firstDefined(row, ['UPT PSDKP']);
+    const categoryRaw = firstDefined(row, ['UPT PSDKP','UPT_PSDKP','UPT','upt']);
+    const statusRaw   = firstDefined(row, ['TL PENGAWASAN','TL_PENGAWASAN','TL pengawasan','TL_pengawasan','TL']);
 
-    // Status dari kolom TL pengawasan (beberapa variasi nama umum)
-    const statusRaw = firstDefined(row, ['TL Pengawasan']);
-
-    const name = firstDefined(row, ['name', 'nama', 'Name', 'NAMA', 'PELAKU USAHA']) || `Lokasi ${idx + 1}`;
-    const addr = firstDefined(row, ['LOKASI']) || '';
+    const name = firstDefined(row, ['PELAKU USAHA','PELAKU_USAHA','pelaku_usaha','name','nama']) || `Lokasi ${idx + 1}`;
+    const addr = firstDefined(row, ['LOKASI','lokasi','address','alamat']) || '';
 
     const lng = parseNumberFlexible(longRaw);
     const lat = parseNumberFlexible(latRaw);
 
-    // jika koordinat tidak valid, skip
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    const status = normalizeStatusExtended(statusRaw); // fungsi normalize yang menangani kata 'sudah'/'belum' atau kembalikan teks as-is
+    const status = normalizeStatusExtended(statusRaw);
 
     allData.push({
       _id: idx,
@@ -46,12 +47,13 @@ function parseSheet(rows) {
   });
 }
 
-// makeMarker: tampilkan UPT dan TL pengawasan di popup
 function makeMarker(d) {
-  const ring = (d.status && d.status.toLowerCase().includes('Sudah Penetapan Sanksi')) ? '#34d399'
-             : (d.status && d.status.toLowerCase().includes('Masih Proses Pengawasan')) ? '#f97316'
-             : (d.status && d.status.toLowerCase().includes('Belum Diawasi')) ? '#38bdf8';
+  const ring = (d.status && d.status.toLowerCase().includes('sudah')) ? '#34d399'
+             : (d.status && d.status.toLowerCase().includes('belum')) ? '#f97316'
+             : '#38bdf8';
+
   const fill = colorByCategory(d.category || d.name);
+
   const m = L.circleMarker([d.lat, d.lng], {
     radius: 7,
     fillColor: fill,
@@ -65,8 +67,8 @@ function makeMarker(d) {
     <div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:220px;max-width:320px">
       <h3 style="font-size:.9rem;margin-bottom:6px;color:#0f172a;border-bottom:2px solid #38bdf8;padding-bottom:4px">${esc(d.name)}</h3>
       <div style="font-size:.78rem;color:#334155;line-height:1.5">
-        ${d.addr ? `<p><strong>Alamat:</strong> ${esc(d.addr)}</p>` : ''}
-        ${d.category ? `<p><strong>UPT:</strong> ${esc(d.category)}</p>` : ''}
+        ${d.addr ? `<p><strong>Lokasi:</strong> ${esc(d.addr)}</p>` : ''}
+        ${d.category ? `<p><strong>UPT PSDKP:</strong> ${esc(d.category)}</p>` : ''}
         ${d.status ? `<p><strong>TL pengawasan:</strong> ${esc(d.status)}</p>` : ''}
         <p><strong>Koordinat:</strong> ${d.lat}, ${d.lng}</p>
       </div>
