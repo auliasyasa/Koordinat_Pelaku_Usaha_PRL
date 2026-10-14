@@ -60,10 +60,9 @@
     // ===========================
     // KONFIGURASI
     // ===========================
-    const SHEET_ID = "https://docs.google.com/spreadsheets/d/19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k/edit?gid=0#gid=0"; // dari link Anda
-    const GID = "1"; // sheet/tab
-    // Pastikan Anda sudah Publish to web → format CSV
-    const sheetUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vTkdUqSjD_NDRg5E9m0xKlPn2K7VkmWtyqa5_aK_0C9xF2lZto5PPelZeRml304hRbd4zlZbHtLeahH/pub?gid=0&single=true&output=csv`;
+   const SHEET_ID = "19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k";
+const GID = "0";
+const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
 
     // Jika mau pakai Google Satellite melalui Google Maps JS API:
     // 1) Tambahkan <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script> di atas
@@ -126,6 +125,8 @@
           map.fitBounds(bounds, {padding: [40,40]});
         } else {
           console.warn('Tidak ada koordinat valid ditemukan.');
+  console.log('CSV fields:', results.meta.fields);
+console.log('First row:', results.data[0]);
         }
       },
       error: function(err) {
@@ -135,25 +136,46 @@
     });
 
     // Proses baris: deteksi nama kolom lat/lng umum
-    function processRows(rows) {
-      allData = [];
-      rows.forEach((row, idx) => {
-        // Mendeteksi kolom latitude / longitude dengan berbagai nama umum
-        const latRaw = firstDefined(row, ['latitude','lat','Latitude','LAT','Lat']);
-        const lngRaw = firstDefined(row, ['longitude','lon','lng','long','Longitude','LONG','LNG','Long']);
-        const name = firstDefined(row, ['PELAKU USAHA','nama','Name','NAMA']) || ('Lokasi ' + (idx+1));
-        const addr = firstDefined(row, ['LOKASI','alamat','Address','ALAMAT']) || '';
-        const phone = firstDefined(row, ['phone','telepon','tel','nohp','PHONE']) || '';
-        const category = firstDefined(row, ['TL PENGAWASAN','kategori','type','tipe']) || '';
+    function parseNumberFlexible(raw) {
+  if (raw === undefined || raw === null) return NaN;
+  const s = String(raw).trim().replace(/\s+/g, '').replace(/,/g, '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
 
-        const lat = parseFloat((latRaw || '').toString().trim());
-        const lng = parseFloat((lngRaw || '').toString().trim());
+function firstDefined(obj, keys) {
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k) &&
+        obj[k] !== undefined &&
+        obj[k] !== null &&
+        String(obj[k]).trim() !== '') {
+      return obj[k];
+    }
+  }
+  return null;
+}
 
-        if (!isNaN(lat) && !isNaN(lng)) {
-          allData.push({ lat, lng, name, addr, phone, category, raw: row });
-        }
+function processRows(rows) {
+  allData = [];
+  rows.forEach((row, idx) => {
+    const latRaw = firstDefined(row, ['LAT', 'Lat', 'lat', 'latitude', 'Latitude']);
+    const lngRaw = firstDefined(row, ['LONG', 'Long', 'long', 'longitude', 'Longitude']);
+    const name = firstDefined(row, ['PELAKU USAHA', 'PELAKU_USAHA', 'pelaku_usaha', 'NAMA', 'nama']) || ('Lokasi ' + (idx + 1));
+    const addr = firstDefined(row, ['LOKASI', 'lokasi', 'ALAMAT', 'alamat']) || '';
+    const category = firstDefined(row, ['UPT PSDKP', 'UPT_PSDKP', 'UPT', 'upt']) || '';
+    const statusRaw = firstDefined(row, ['TL PENGAWASAN', 'TL_PENGAWASAN', 'TL pengawasan', 'TL_pengawasan', 'TL']) || '';
+    const status = normalizeStatus(statusRaw);
+
+    const lat = parseNumberFlexible(latRaw);
+    const lng = parseNumberFlexible(lngRaw);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      allData.push({
+        lat, lng, name, addr, category, status, raw: row
       });
     }
+  });
+}
 
     function firstDefined(obj, keys) {
       for (const k of keys) {
