@@ -56,7 +56,7 @@
     // ===========================
     // Konfigurasi: ganti jika perlu
     // ===========================
-    const SHEET_ID = "19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k";
+    const SHEET_ID = "[19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k](https://docs.google.com/spreadsheets/d/e/2PACX-1vTkdUqSjD_NDRg5E9m0xKlPn2K7VkmWtyqa5_aK_0C9xF2lZto5PPelZeRml304hRbd4zlZbHtLeahH/pub?gid=0&single=true&output=csv)";
     const GID = "0"; // dari URL sheet Anda (#gid=0)
     // URL export CSV publik (butuh Publish to web)
     const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
