@@ -1,13 +1,19 @@
 /* ==== UTIL ==== */
 const $ = (id) => document.getElementById(id);
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;'}[c]));
+
+const esc = (v) =>
+  String(v ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c])
+  );
 
 function firstDefined(obj, keys) {
   for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(obj, key) &&
-        obj[key] !== undefined &&
-        obj[key] !== null &&
-        String(obj[key]).trim() !== '') {
+    if (
+      Object.prototype.hasOwnProperty.call(obj, key) &&
+      obj[key] !== undefined &&
+      obj[key] !== null &&
+      String(obj[key]).trim() !== ''
+    ) {
       return obj[key];
     }
   }
@@ -35,6 +41,7 @@ const GID = '0';
 const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
 
 const map = L.map('map').setView([-6.2, 106.8], 11);
+
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors'
@@ -51,6 +58,7 @@ const baseMaps = {
   'OpenStreetMap': osm,
   'Satelit (Esri)': esriSat
 };
+
 L.control.layers(baseMaps).addTo(map);
 
 const markersCluster = L.markerClusterGroup();
@@ -86,6 +94,7 @@ function processRows(rows) {
 
 function renderMarkers(filterText = '', filterCategory = '') {
   markersCluster.clearLayers();
+
   const ft = (filterText || '').toLowerCase().trim();
   const fc = (filterCategory || '').toLowerCase().trim();
   const bounds = [];
@@ -110,15 +119,19 @@ function renderMarkers(filterText = '', filterCategory = '') {
   });
 
   map.addLayer(markersCluster);
+
   if (bounds.length) {
-    map.fitBounds(bounds, { padding: [40, 40] });
+    map.fitBounds(bounds, { padding: [30, 30] });
   }
 }
 
 function populateCategorySelect() {
-  const sel = document.getElementById('categorySelect');
+  const sel = $('categorySelect');
   sel.innerHTML = '<option value="">Semua Kategori</option>';
-  const cats = Array.from(new Set(allData.map(d => (d.category || '').trim()).filter(Boolean))).sort();
+
+  const cats = Array.from(new Set(
+    allData.map(d => (d.category || '').trim()).filter(Boolean)
+  )).sort();
 
   cats.forEach((c) => {
     const opt = document.createElement('option');
@@ -128,20 +141,20 @@ function populateCategorySelect() {
   });
 }
 
-document.getElementById('applyBtn').addEventListener('click', () => {
-  const txt = document.getElementById('searchText').value;
-  const cat = document.getElementById('categorySelect').value;
+$('applyBtn').addEventListener('click', () => {
+  const txt = $('searchText').value;
+  const cat = $('categorySelect').value;
   renderMarkers(txt, cat);
 });
 
-document.getElementById('resetBtn').addEventListener('click', () => {
-  document.getElementById('searchText').value = '';
-  document.getElementById('categorySelect').value = '';
+$('resetBtn').addEventListener('click', () => {
+  $('searchText').value = '';
+  $('categorySelect').value = '';
   renderMarkers();
 
   if (allData.length) {
     const bounds = allData.map(d => [d.lat, d.lng]);
-    map.fitBounds(bounds, { padding: [40, 40] });
+    map.fitBounds(bounds, { padding: [30, 30] });
   }
 });
 
@@ -160,7 +173,7 @@ Papa.parse(sheetUrl, {
 
     if (allData.length) {
       const bounds = allData.map(d => [d.lat, d.lng]);
-      map.fitBounds(bounds, { padding: [40, 40] });
+      map.fitBounds(bounds, { padding: [30, 30] });
     } else {
       console.warn('Tidak ada koordinat valid ditemukan. Cek header LONG/LAT serta publish CSV.');
     }
