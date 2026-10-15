@@ -1,282 +1,75 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WebGIS - Pelaku Usaha (Google Sheet)</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      font-family: sans-serif;
-      background: #f3f4f6;
-    }
-
-    #map {
-      position: absolute;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    .controls {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      z-index: 1000;
-      background: rgba(255,255,255,0.96);
-      padding: 12px 14px;
-      border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.18);
-      min-width: 260px;
-      max-width: 320px;
-      border: 1px solid rgba(15, 23, 42, 0.08);
-    }
-
-    .controls strong {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 15px;
-    }
-
-    .controls input,
-    .controls select,
-    .controls button {
-      width: 100%;
-      box-sizing: border-box;
-      margin: 6px 0;
-      padding: 8px 10px;
-      font-size: 14px;
-      border-radius: 6px;
-      border: 1px solid #d1d5db;
-    }
-
-    .controls button {
-      background: #e5e7eb;
-      cursor: pointer;
-      font-weight: 600;
-    }
-
-    .controls button:hover {
-      background: #dfe3ea;
-    }
-
-    .small {
-      margin-top: 6px;
-      font-size: 12px;
-      color: #4b5563;
-      line-height: 1.4;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGIS Hotspot Pengawasan Dit. PSDKP</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
 </head>
 <body>
-  <div class="controls" id="controls">
-    <strong>Filter / Pencarian</strong>
-    <input id="searchText" placeholder="Cari nama atau alamat..." />
-    <select id="categorySelect">
-      <option value="">Semua Kategori</option>
-    </select>
-    <button id="applyBtn">Terapkan</button>
-    <button id="resetBtn">Reset & Zoom</button>
-    <div class="small">Pastikan sheet sudah di-publish (File → Publish to web → CSV).</div>
+
+<aside id="sidebar" aria-label="Filter dan daftar lokasi">
+  <div class="sb-head">
+    <div>
+      <h1><i class="fa-solid fa-map-location-dot"></i> WebGIS Hotspot PSDKP</h1>
+      <p>Visualisasi pengawasan Dit. PSDK</p>
+    </div>
+    <button class="icon-btn" id="sb-close" aria-label="Tutup panel"><i class="fa-solid fa-chevron-left"></i></button>
   </div>
 
+  <div class="sb-body">
+    <div class="stats" aria-live="polite">
+      <div class="stat"><b id="n-sudah" style="color:#34d399">0</b><span>Sudah Sanksi</span></div>
+      <div class="stat"><b id="n-proses" style="color:#60a5fa">0</b><span>Proses</span></div>
+      <div class="stat"><b id="n-belum" style="color:#f97316">0</b><span>Belum</span></div>
+    </div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+    <div class="progress-note" id="bar-note"></div>
+
+    <div class="field">
+      <label for="q">Cari pelaku usaha, lokasi, atau indikasi</label>
+      <input id="q" class="control" type="search" placeholder="Ketik untuk mencari…" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="f-upt">UPT PSDKP</label>
+      <select id="f-upt" class="control"><option value="">Semua UPT</option></select>
+      <div id="upt-pelaku-info" style="font-size:0.75rem;color:var(--muted);margin-top:6px;">Total Pelaku Usaha: <span id="n-upt-pelaku" style="font-weight:700;color:var(--accent)">0</span></div>
+    </div>
+    <div class="field">
+      <label id="lbl-status">Status pengawasan</label>
+      <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status" style="grid-template-columns: repeat(3, 1fr);">
+        <button type="button" data-v="" aria-pressed="true">Semua</button>
+        <button type="button" data-v="Sudah penetapan sanksi" aria-pressed="false">Sudah Sanksi</button>
+        <button type="button" data-v="Masih proses pengawasan" aria-pressed="false">Proses</button>
+        <button type="button" data-v="Belum diawasi" aria-pressed="false">Belum</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="list-head">Daftar lokasi (<span id="n-show">0</span>)</span>
+      <button class="link-btn" id="reset" type="button">Reset filter</button>
+    </div>
+    <ul id="data-list"></ul>
+  </div>
+</aside>
+
+<main id="map-wrap">
+  <button class="icon-btn" id="sb-open" type="button"><i class="fa-solid fa-sliders"></i> Filter</button>
   <div id="map"></div>
+  <div id="toast" role="status"></div>
+</main>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-  <script>
-    const SHEET_ID = '19XvPDOvnKFobzk45LnqKwvbeAMoxT0N3ob0cLqYPT4k';
-    const GID = '0';
-    const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
-
-    const map = L.map('map').setView([-6.2, 106.8], 11);
-
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    });
-
-    const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
-    });
-
-    osm.addTo(map);
-
-    const baseMaps = {
-      'OpenStreetMap': osm,
-      'Satelit (Esri)': esriSat
-    };
-
-    L.control.layers(baseMaps).addTo(map);
-
-    const markersCluster = L.markerClusterGroup();
-    let allData = [];
-
-    function firstDefined(obj, keys) {
-      for (const key of keys) {
-        if (Object.prototype.hasOwnProperty.call(obj, key) &&
-            obj[key] !== undefined &&
-            obj[key] !== null &&
-            String(obj[key]).trim() !== '') {
-          return obj[key];
-        }
-      }
-      return null;
-    }
-
-    function parseNumberFlexible(raw) {
-      if (raw === undefined || raw === null) return NaN;
-      const s = String(raw).trim().replace(/\s+/g, '').replace(/,/g, '.');
-      const n = Number(s);
-      return Number.isFinite(n) ? n : NaN;
-    }
-
-    function normalizeStatus(value) {
-      const s = String(value || '').trim();
-      if (!s) return '';
-      const low = s.toLowerCase();
-      if (low.includes('sudah')) return 'Sudah diawasi';
-      if (low.includes('belum')) return 'Belum diawasi';
-      return s;
-    }
-
-    function processRows(rows) {
-      allData = [];
-
-      rows.forEach((row, idx) => {
-        const latRaw = firstDefined(row, ['LAT', 'Lat', 'lat', 'latitude', 'Latitude']);
-        const lngRaw = firstDefined(row, ['LONG', 'Long', 'long', 'longitude', 'Longitude']);
-        const name = firstDefined(row, ['PELAKU USAHA', 'PELAKU_USAHA', 'pelaku_usaha', 'NAMA', 'nama', 'name']) || `Lokasi ${idx + 1}`;
-        const addr = firstDefined(row, ['LOKASI', 'lokasi', 'ALAMAT', 'alamat', 'address']) || '';
-        const category = firstDefined(row, ['UPT PSDKP', 'UPT_PSDKP', 'UPT', 'upt']) || '';
-        const status = normalizeStatus(firstDefined(row, ['TL PENGAWASAN', 'TL_PENGAWASAN', 'TL pengawasan', 'TL_pengawasan', 'TL']));
-
-        const lat = parseNumberFlexible(latRaw);
-        const lng = parseNumberFlexible(lngRaw);
-
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-        allData.push({
-          lat,
-          lng,
-          name,
-          addr,
-          category,
-          status,
-          raw: row
-        });
-      });
-    }
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      return text.toString()
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
-    function renderMarkers(filterText = '', filterCategory = '') {
-      markersCluster.clearLayers();
-      const ft = (filterText || '').toLowerCase().trim();
-      const fc = (filterCategory || '').toLowerCase().trim();
-      const bounds = [];
-
-      allData.forEach((d) => {
-        const matchesText = !ft || (d.name && d.name.toLowerCase().includes(ft)) || (d.addr && d.addr.toLowerCase().includes(ft));
-        const matchesCat = !fc || (d.category && d.category.toLowerCase() === fc);
-
-        if (matchesText && matchesCat) {
-          const popup = `
-            <strong>${escapeHtml(d.name)}</strong><br/>
-            ${escapeHtml(d.addr)}
-            ${d.category ? '<br/><em>' + escapeHtml(d.category) + '</em>' : ''}
-            ${d.status ? '<br/>TL Pengawasan: ' + escapeHtml(d.status) : ''}
-          `;
-
-          const m = L.marker([d.lat, d.lng]);
-          m.bindPopup(popup);
-          markersCluster.addLayer(m);
-          bounds.push([d.lat, d.lng]);
-        }
-      });
-
-      map.addLayer(markersCluster);
-
-      if (bounds.length) {
-        map.fitBounds(bounds, { padding: [30, 30] });
-      }
-    }
-
-    function populateCategorySelect() {
-      const sel = document.getElementById('categorySelect');
-      sel.innerHTML = '<option value="">Semua Kategori</option>';
-
-      const cats = Array.from(new Set(
-        allData.map(d => (d.category || '').trim()).filter(Boolean)
-      )).sort();
-
-      cats.forEach((c) => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        sel.appendChild(opt);
-      });
-    }
-
-    document.getElementById('applyBtn').addEventListener('click', () => {
-      const txt = document.getElementById('searchText').value;
-      const cat = document.getElementById('categorySelect').value;
-      renderMarkers(txt, cat);
-    });
-
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      document.getElementById('searchText').value = '';
-      document.getElementById('categorySelect').value = '';
-      renderMarkers();
-
-      if (allData.length) {
-        const bounds = allData.map(d => [d.lat, d.lng]);
-        map.fitBounds(bounds, { padding: [30, 30] });
-      }
-    });
-
-    Papa.parse(sheetUrl, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function(results) {
-        console.log('CSV fields:', results.meta.fields);
-        console.log('First row:', results.data[0]);
-
-        const rows = results.data || [];
-        processRows(rows);
-        populateCategorySelect();
-        renderMarkers();
-
-        if (allData.length) {
-          const bounds = allData.map(d => [d.lat, d.lng]);
-          map.fitBounds(bounds, { padding: [30, 30] });
-        } else {
-          console.warn('Tidak ada koordinat valid ditemukan. Cek header LONG/LAT serta publish CSV.');
-        }
-      },
-      error: function(err) {
-        console.error('Gagal memuat sheet:', err);
-        alert('Gagal memuat data. Pastikan sheet sudah di-publish (File → Publish to web) dan SHEET_ID/GID benar.');
-      }
-    });
-  </script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<script src="data.js"></script>
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
